@@ -1,34 +1,41 @@
-# CMPS-394-Day 7
+# CMPS-394-Day 10
 
-## Lab 1: Fitting the Pieces Together
-You have been supplied a basic ui served via nginx, a hello world Go API, and a PostgreSQL 16 database. Your task is to finish the docker compose file to get all three services running together. The UI should be able to call the API, and the API should be able to connect to the database.
-- The UI should be available on port 80 of the host machine.
-- The API should be available on port 8080 of the host machine.
-    - You will need to define these environment variables for the API to connect to the database:
-        - DB_HOST
-        - DB_PORT
-        - DB_USER
-        - DB_PASSWORD
-        - DB_NAME
-    - Note: The API will be making requests to the database from inside of docker, so take that into account when setting the DB_HOST variable.
-- The API should wait on the database to be healthy before starting up.
-    - look up the depends_on option in docker compose and how to use it with a healthcheck
-- You'll know you have everything set up correctly when the UI shows "Hello, World!" in blue text in the center of the screen.
+## Lab 1: Scanner Setup
+We will be using a series of container scanning tools to identify vulnerabilities in our container images. The first step is to set up these tools on your local machine.
+- Trivy: `docker pull aquasec/trivy:0.69.3`
+    - https://trivy.dev/docs/latest/getting-started/
+    - We are using version 0.69.3 because it is latest and not specifying a version will cause the image not to be found as the Trivy team has removed the latest tag from their repository. Had to dig through GitHub issues to find this information.
+- Grype: `docker pull anchore/grype`
+    - https://oss.anchore.com/docs/guides/vulnerability/getting-started/
+    - https://oss.anchore.com/docs/guides/vulnerability/interpreting-results/#reading-table-output
+- Now, we are going to run this against the alpine image we used last class for the lab
+    - `docker run aquasec/trivy:0.69.3 image nginx:1.29-alpine`
+    - `docker run anchore/grype nginx:1.29-alpine`
+- Notice the difference between what the tools report by default. Add the `--only-fixed` flag to the grype command to see only the vulnerabilities that have fixes available. Now the two tools will report similar results. 
+- All scanning tools have their own features and capabilities, so it is worthwhile to dive into whichever tool customization options you may want in a production environment. Most of these are easily integrated into CI/CD pipelines to automate the scanning process.
 
-## Lab 2: Docker Compose Networking
-Modify the docker compose file from Lab 1 to use a custom network. This will allow the services to communicate with each other using their service names as hostnames.
-- Create a custom network called "app_network" in the docker compose file
-- Connect all three services (db, api, ui) to the "app_network" network
-- Update the DB_HOST environment variable for the API service to use the service name of the database
-- Comment out the port mapping for the database service, as it will no longer be needed for the API to connect to it
-- Verify that the UI still shows "Hello, World!" in blue text in the center of the screen
-    - You will most likely need to recreate the containers for the changes to take effect, use `docker compose down` and `docker compose up --build` to do so.
+## Lab 2: Creating a Hardened Image
+In this lab, we will create a hardened version of the nginx:1.29-alpine and python:3.12-alpine images.
+- We will focus on fixable vulnerabilities first, then take a look at the unfixable ones and see if we can mitigate them in other ways.
+- Start by creating a Dockerfile for each image and doing a container-wide package update (Alpine uses apk for package management).
+- Re-scan the image after the update to see how many vulnerabilities have been fixed (note: you need to specify the image created from your Dockerfile, not the base image).
+- Use the following command for Trivy to scan the image you built (replace the name) as it is running inside a container and needs access to the Docker socket to see the images on your local machine: 
+```
+docker run --rm \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v $HOME/Library/Caches:/root/.cache \
+  aquasec/trivy:0.69.3 image my-nginx
+```
+- Use this for Grype. Same concept:
+```
+docker run --rm \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  anchore/grype my-nginx
+```
+- By the end, you should have no fixable vulnerabilities in the images.
 
-## Assignment: Python API in a Compose Network
-Take the Python API and database you created in the previous class's assignment and wire it up to a basic UI served via nginx using docker compose like we did in the labs today. You should use a custom network and the database should not be exposed to the host machine.
-- It is up to you if you want to use a JS framework or just a simple HTML page for the UI
-- Your API should use environment variables to get the database connection information, and it should wait on the database to be healthy before starting up
-- You do not need to add support for every endpoint you created. Just a GET endpoint will do.
-Links to an external site.
+## Assignment: Hardened Dockerfiles
+Use the dockerfiles you have been using for the last few assignments, scan them with the tools we used today (and others if you feel so inclined), and create hardened versions of those images.
+- When scanning with Trivy and Grype (with the --only-fixed flag), you should have no fixable vulnerabilities in your images.
 
 Piep waz hear! 
